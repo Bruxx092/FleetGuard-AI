@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+
+# Project data and artifacts (gitignored; see PROJECT_PLAN.md section 4)
+data/
+artifacts/
+
+# OS
+.DS_Store
