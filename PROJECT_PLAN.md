@@ -38,9 +38,10 @@ Uma operação não deve tratar todas as motos da mesma forma. O FleetGuard tran
 5. **Privacidade por padrão:** IDs sintéticos; nenhuma PII, placa, documento ou localização precisa no dataset público.
 6. **Falhar com clareza:** eventos inválidos são rejeitados/quarentenados; não são silenciosamente “consertados”.
 7. **Uma decisão por ADR:** decisões relevantes têm contexto, alternativas, escolha e consequência.
-8. **Cloud pragmática:** a Magalu Cloud é o provedor atual do projeto por causa dos créditos do hackathon; serviços devem ser adicionados somente quando agregarem valor demonstrável.
-9. **Portabilidade:** o uso de Object Storage compatível com S3 deve manter o código desacoplado do provedor sempre que possível.
-10. **Enterprise como evolução:** SAP HANA e SAP Fiori entram depois do MVP e somente quando a integração tiver um caso de uso claro.
+8. **Cloud pragmática:** a AWS é o ambiente cloud de referência de longo prazo; serviços entram somente quando agregarem valor demonstrável.
+9. **Portabilidade:** a arquitetura deve evitar dependência desnecessária de um provedor, priorizando interfaces e padrões como S3-compatible Object Storage.
+10. **Cloud Lab:** a Magalu Cloud será usada durante o período dos créditos para validar a portabilidade da arquitetura e comparar serviços equivalentes.
+11. **Enterprise como evolução:** SAP HANA e SAP Fiori entram depois do MVP e somente quando a integração tiver um caso de uso claro.
 
 ## 3. Arquitetura evolutiva
 
@@ -55,19 +56,24 @@ PostgreSQL + modelo Joblib -> FastAPI -> dashboard/cliente
                  ^                 |
           treinamento Python       +-> predições auditáveis
 
-FASES 9–15 (Magalu Cloud e arquitetura)
+FASE 9 (Cloud Lab — Magalu)
 Magalu Object Storage (S3-compatible) <-> VM + Docker Compose
-                                              |       |
-                                         FastAPI  Clojure event gateway
                                               |
-                                      PostgreSQL DBaaS
-                                              |
-                                   logs, métricas, segurança
-                                              |
-                                  ┌───────────┴───────────┐
-                                  │                       │
-                              SAP HANA               SAP Fiori
-                           analytics/integração    interface enterprise
+                                      PostgreSQL / FastAPI
+
+FASES 10–16 (AWS como cloud de referência)
+S3 <-> EC2 + Docker Compose
+          |          |
+       FastAPI   Clojure event gateway
+          |
+         RDS PostgreSQL
+          |
+   logs, métricas, segurança
+          |
+ ┌────────┴──────────────┐
+ │                       │
+SAP HANA               SAP Fiori
+analytics/integração   interface enterprise
 ```
 
 **Componentes e responsabilidades**
@@ -80,8 +86,9 @@ Magalu Object Storage (S3-compatible) <-> VM + Docker Compose
 | Treinamento | Avaliar e versionar modelo | Alterar dados brutos |
 | FastAPI | Consultar saúde e executar inferência | Retreinar em requisição |
 | Clojure (tardio) | Validar/normalizar eventos de entrada | Duplicar regras analíticas |
-| Magalu Object Storage (tardio) | Data lake e artefatos; compatibilidade com fluxo S3 | Banco transacional |
-| PostgreSQL DBaaS (tardio) | Banco relacional gerenciado | Armazenar modelos ML |
+| AWS S3 (cloud principal) | Data lake e artefatos; armazenamento de objetos | Banco transacional |
+| Magalu Object Storage (Cloud Lab) | Validar portabilidade S3-compatible e comparar operação | Banco transacional |
+| AWS RDS PostgreSQL (cloud principal) | Banco relacional gerenciado | Armazenar modelos ML |
 | SAP HANA (evolução) | Analytics e integração corporativa | Substituir o banco operacional sem justificativa |
 | SAP Fiori (evolução) | Interface corporativa orientada a papéis | Executar ETL ou ML |
 
@@ -122,7 +129,8 @@ fleetguard-ai/
 ├── artifacts/                  # modelos/relatórios locais; ignorado no Git
 └── infra/
     ├── docker/
-    └── aws/
+    ├── aws/
+    └── magalu/
 ```
 
 ## 5. Domínio e contrato de dados
@@ -519,12 +527,17 @@ plano e o Grill-me da Fase <PRÓXIMA>.
 
 | Marco | Resultado | Valor para vaga |
 |---|---|---|
-| MVP Dados (F0–F5) | EDA, SQL, modelo, BI/Excel | Analista/Engenharia de Dados júnior |
+| MVP Dados (F0–F5) | EDA, SQL, modelagem, BI/Excel | Analista/Engenharia de Dados júnior |
 | MVP IA (F6–F8) | modelo, API e Compose | Dados/ML aplicado |
-| Cloud (F9–F11) | Object Storage, VM, Docker e PostgreSQL DBaaS documentados | integração e deploy |
-| Arquitetura (F12–F15) | eventos, bateria, SAP, segurança/observabilidade | AI Solutions Architect em evolução |
+| Cloud Lab (F9) | Magalu Object Storage + infraestrutura temporária | experiência prática em cloud e portabilidade |
+| AWS (F10–F11) | S3, EC2, Docker e RDS PostgreSQL | deploy, cloud e operação |
+| Arquitetura (F12–F16) | portabilidade, eventos, bateria, SAP, segurança/observabilidade | evolução para AI Solutions Architect |
 
-**Prioridade realista:** publicar F0–F8 antes de perseguir cloud/arquitetura avançada. Depois, usar os créditos da Magalu Cloud para F9–F11 e tratar Clojure e SAP como evoluções justificadas. Uma entrega menor, testada e explicável vale mais que uma arquitetura extensa sem funcionamento demonstrável.
+**Prioridade realista:** publicar F0–F8 antes da infraestrutura cloud avançada. Em seguida, usar o crédito da Magalu para um experimento curto e reproduzível de cloud portability, e manter a AWS como ambiente de referência para a evolução do projeto.
+
+**Regra financeira:** nenhum recurso cloud deve permanecer ativo sem necessidade. O projeto deve possuir instruções de desligamento/remoção e acompanhamento de custos. A elegibilidade e os limites do nível gratuito da AWS variam conforme a data e o tipo de conta; verificar o console antes de criar recursos pagos. citeturn0search12turn0search14
+
+**Regra arquitetural:** o objetivo não é demonstrar quantidade de serviços. Cada serviço precisa responder a uma necessidade concreta, ter um teste ou evidência e gerar um trade-off documentado.
 
 ## 14. README final — checklist de publicação
 
@@ -537,15 +550,37 @@ O README final deve conter:
 - [ ] resultados de EDA, SQL e ML com limitações;
 - [ ] endpoints, exemplos de request/response e versão do modelo;
 - [ ] instruções de testes, Docker e variáveis de ambiente;
-- [ ] custos, segurança e observabilidade da versão Magalu Cloud;
-- [ ] decisão arquitetural sobre PostgreSQL DBaaS;
+- [ ] custos, segurança e observabilidade da versão AWS;
+- [ ] relatório do Cloud Lab Magalu → AWS;
+- [ ] decisão arquitetural sobre AWS RDS PostgreSQL;
 - [ ] seção de integração SAP HANA/Fiori, caso implementada;
 - [ ] ADRs e roadmap de próximos passos;
 - [ ] seção “o que eu faria em produção”, diferenciada da implementação atual.
 
+## 15. Trilha DDIA integrada ao projeto
+
+O estudo de **Designing Data-Intensive Applications (Martin Kleppmann)** acompanha a evolução do FleetGuard como uma trilha arquitetural, e não como um estudo separado.
+
+| Tema DDIA | Experimento no FleetGuard |
+|---|---|
+| Modelos de dados | PostgreSQL, entidades e relacionamentos |
+| Storage | PostgreSQL vs Object Storage |
+| Encoding | CSV/JSON → Parquet |
+| Batch processing | Pandas e processamento histórico |
+| Sistemas distribuídos | AWS + serviços separados |
+| Consistência | dados operacionais vs predições |
+| Particionamento | telemetria por veículo/período |
+| Idempotência | eventos duplicados no gateway |
+| Streaming | evolução futura do gateway Clojure |
+| Escalabilidade | critérios para sair do MVP |
+| Falhas | testes de indisponibilidade e recuperação |
+| Cloud portability | Magalu → AWS |
+
+Cada conceito relevante deve resultar em pelo menos uma destas evidências: experimento, teste, ADR ou documentação de trade-off. **Não implementar tecnologias apenas porque aparecem no livro.** A pergunta principal é: qual problema do FleetGuard justifica essa tecnologia?
+
 ## 15. Critério final de sucesso
 
-O FleetGuard AI está pronto para ser apresentado quando uma pessoa consegue, em poucos minutos: entender que os dados são sintéticos; gerar uma frota; ver análise e KPIs; consultar uma predição explicável por API; reproduzir o ambiente; e reconhecer as decisões arquiteturais, limites, custos e próximos passos sem promessas exageradas. A documentação deve diferenciar claramente o MVP, a infraestrutura Magalu Cloud e as integrações enterprise opcionais com SAP.
+O FleetGuard AI está pronto para ser apresentado quando uma pessoa consegue, em poucos minutos: entender que os dados são sintéticos; gerar uma frota; ver análise e KPIs; consultar uma predição explicável por API; reproduzir o ambiente; e reconhecer as decisões arquiteturais, limites, custos e próximos passos sem promessas exageradas. A documentação deve diferenciar claramente o MVP, o Cloud Lab temporário da Magalu Cloud, a infraestrutura AWS de referência e as integrações enterprise opcionais com SAP.
 
 ---
 
